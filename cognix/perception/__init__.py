@@ -1,12 +1,27 @@
-"""cognix: a cognitive architecture runtime.
+"""Perception subsystem: parsing, beliefs, schema-based interpretation."""
 
-Layered memory (working, episodic, semantic), salience-driven attention,
-a planner-executor agent loop with reflection, real tools, evals, and
-persistence. Standard library only.
-"""
+from cognix.perception.pipeline import (
+    STOPWORDS,
+    URGENCY_MARKERS,
+    find_urgency_markers,
+    keywords,
+    mentions_date,
+    observation_to_beliefs,
+    parse_observation,
+)
+from cognix.perception.beliefs import Belief, BeliefStore
+from cognix.perception.schema import Schema, SchemaLibrary
 
-__version__ = "1.0.0"
-
-from .runtime import CognitiveRuntime
-
-__all__ = ["CognitiveRuntime", "__version__"]
+__all__ = [
+    "STOPWORDS",
+    "URGENCY_MARKERS",
+    "find_urgency_markers",
+    "keywords",
+    "mentions_date",
+    "observation_to_beliefs",
+    "parse_observation",
+    "Belief",
+    "BeliefStore",
+    "Schema",
+    "SchemaLibrary",
+]
