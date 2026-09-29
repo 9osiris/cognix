@@ -1,0 +1,31 @@
+# showcase.cx - the deeper machinery: replay, curiosity, hierarchy
+#
+# run with: python3 -m cognix.cli batch examples/showcase.cx
+
+# related salient observations become linked episodes after replay
+observe: the atlas server is running hot
+observe: the atlas server needs a reboot
+observe: the atlas server is running hot
+observe: the atlas server needs a reboot
+
+# a compound goal with data flowing between its steps
+goal: 0.9 calculate 12 * 8 and save the result in a note called math
+run
+assert: goal-done
+assert: note math 96
+
+# data flows between plan steps, including into files
+goal: 0.6 calculate 7 * 6 and write the result to the file answer.txt
+run
+assert: goal-done
+
+# consolidation mines episodes, then replay strengthens the links
+rehearse
+consolidate
+assert: episodes 1
+
+# curiosity: the repeated server topic fades, new topics stay novel
+observe: the atlas server is running hot
+observe: the atlas server is running hot
+
+print: showcase complete

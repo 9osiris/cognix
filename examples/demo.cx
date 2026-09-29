@@ -1,0 +1,12 @@
+# demo.cx - a first run through the cognitive loop
+observe: the demo server is called atlas
+observe: atlas runs on port 8080
+goal: 0.8 calculate 15 * 4 and save the result in a note called demo
+run
+rehearse
+consolidate
+recall: demo server
+assert: belief atlas
+assert: note demo 60
+assert: goal-done
+print: demo complete
