@@ -1,30 +1,12 @@
-"""cognix.memory: working, episodic, semantic, consolidation, recall, forgetting."""
+"""cognix: a cognitive architecture runtime.
 
-from .working import WorkingItem, WorkingMemory
-from .episodic import Episode, EpisodicMemory, tokenize, STOPWORDS
-from .semantic import Concept, Relation, SemanticMemory
-from .consolidation import ConsolidationPolicy, consolidate
-from .associative import AssociativeRecall
-from .forgetting import ebbinghaus_retention, half_life, ForgettingCurve
-from .replay import ReplayPolicy, replay, select_episodes
+Layered memory (working, episodic, semantic), salience-driven attention,
+a planner-executor agent loop with reflection, real tools, evals, and
+persistence. Standard library only.
+"""
 
-__all__ = [
-    "WorkingItem",
-    "WorkingMemory",
-    "Episode",
-    "EpisodicMemory",
-    "tokenize",
-    "STOPWORDS",
-    "Concept",
-    "Relation",
-    "SemanticMemory",
-    "ConsolidationPolicy",
-    "consolidate",
-    "AssociativeRecall",
-    "ebbinghaus_retention",
-    "half_life",
-    "ForgettingCurve",
-    "ReplayPolicy",
-    "replay",
-    "select_episodes",
-]
+__version__ = "1.0.0"
+
+from .runtime import CognitiveRuntime
+
+__all__ = ["CognitiveRuntime", "__version__"]
