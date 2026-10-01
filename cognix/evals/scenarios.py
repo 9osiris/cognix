@@ -438,6 +438,35 @@ def scenario_hierarchical_goals():
     )
 
 
+def scenario_dream_insights():
+    actions = [
+        ("observe", "the atlas server is running hot"),
+        ("observe", "the garden irrigation needs a timer"),
+        ("rehearse_all",),
+        ("consolidate",),
+        ("dream",),
+    ]
+
+    def dream_traces_recorded(runtime):
+        dreams = [e for e in runtime.episodic.recent(20) if "dream" in e.tags]
+        return len(dreams) >= 1, "dream episodes=%d" % len(dreams)
+
+    def insight_beliefs_low_confidence(runtime):
+        insights = [b for b in runtime.beliefs.strongest(50)
+                    if b.source == "dream"]
+        ok = bool(insights) and all(b.confidence <= 0.5 for b in insights)
+        return ok, "dream beliefs=%d" % len(insights)
+
+    return Scenario(
+        "dream_insights",
+        "a dream cycle recombines unlinked episodes into dream traces and "
+        "low-confidence insight beliefs",
+        actions,
+        [("dream traces recorded", dream_traces_recorded),
+         ("insights stay low-confidence", insight_beliefs_low_confidence)],
+    )
+
+
 def build_scenarios():
     return [
         scenario_memory_recall(),
@@ -457,4 +486,5 @@ def build_scenarios():
         scenario_belief_contradiction(),
         scenario_forgetting_curve(),
         scenario_hierarchical_goals(),
+        scenario_dream_insights(),
     ]
