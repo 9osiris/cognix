@@ -28,6 +28,7 @@ from .memory.consolidation import ConsolidationPolicy, consolidate
 from .memory.episodic import EpisodicMemory
 from .memory.forgetting import ForgettingCurve
 from .memory.replay import ReplayPolicy, replay
+from .memory.dream import DreamPolicy, dream
 from .memory.semantic import SemanticMemory
 from .memory.working import WorkingMemory
 from .perception.beliefs import BeliefStore
@@ -96,6 +97,12 @@ class CognitiveRuntime:
         self.replay_policy = ReplayPolicy(
             budget=self.config.get("memory.replay_budget", 5),
             min_salience=self.config.get("memory.replay_min_salience", 0.4),
+        )
+        self.dream_policy = DreamPolicy(
+            budget=self.config.get("memory.dream_budget", 8),
+            dreams=self.config.get("memory.dreams_per_cycle", 3),
+            min_salience=self.config.get("memory.dream_min_salience", 0.4),
+            seed=self.config.get("memory.dream_seed"),
         )
         self.beliefs = BeliefStore()
 
@@ -214,6 +221,18 @@ class CognitiveRuntime:
             replay_stats = replay(self.episodic, self.semantic, self.working,
                                   policy=self.replay_policy, now=self._now)
         stats["replay"] = replay_stats
+        return stats
+
+    def dream(self):
+        """Run one dream cycle over the episodic store.
+
+        Dreaming is separate from consolidation: it runs on demand or on a
+        schedule, recombines unlinked salient episodes into dream traces,
+        and proposes low-confidence insight beliefs and semantic relations.
+        """
+        with self.tracer.start("dream"):
+            stats = dream(self.episodic, self.semantic, self.beliefs,
+                          policy=self.dream_policy, now=self._now)
         return stats
 
     # agency
@@ -369,6 +388,7 @@ class CognitiveRuntime:
             "arousal": self.arousal.to_dict(),
             "curiosity": self.curiosity.to_dict(),
             "replay_policy": self.replay_policy.to_dict(),
+            "dream_policy": self.dream_policy.to_dict(),
             "strategy_ledger": self.meta.ledger_to_dict(),
             "trace": self.tracer.to_dict(),
             "config": self.config.to_dict(),
@@ -395,6 +415,8 @@ class CognitiveRuntime:
                                now=rt._now)
         if data.get("replay_policy"):
             rt.replay_policy = ReplayPolicy.from_dict(data["replay_policy"])
+        if data.get("dream_policy"):
+            rt.dream_policy = DreamPolicy.from_dict(data["dream_policy"])
         rt.meta.ledger_from_dict(data.get("strategy_ledger"))
         rt.assoc = AssociativeRecall(rt.working, rt.episodic, rt.semantic)
         if data.get("trace"):
