@@ -107,6 +107,25 @@ def cmd_inspect(args):
     return 0
 
 
+def cmd_dream(args):
+    if args.load:
+        rt = CognitiveRuntime.load(args.load)
+    else:
+        rt = _make_runtime(args)
+    stats = rt.dream()
+    print("dreams=%d insights=%d links=%d relations=%d" % (
+        stats["dreams"], stats["insights"],
+        stats["links_added"], stats["relations_proposed"]))
+    for ep_id in stats["dream_ids"]:
+        ep = rt.episodic.get(ep_id)
+        if ep is not None:
+            print("  - %s" % ep.summary[:100])
+    if args.save:
+        path = rt.save(args.save)
+        print("saved to %s" % path)
+    return 0
+
+
 def cmd_init(args):
     target = args.dir or "cognix_workspace"
     os.makedirs(target, exist_ok=True)
@@ -162,6 +181,13 @@ def build_parser():
     p_init = sub.add_parser("init", help="create a workspace")
     p_init.add_argument("dir", nargs="?", default=None)
     p_init.set_defaults(func=cmd_init)
+
+    p_dream = sub.add_parser("dream", help="run a dream cycle")
+    p_dream.add_argument("--load", default=None,
+                         help="load state file first")
+    p_dream.add_argument("--save", default=None,
+                         help="save state to path after")
+    p_dream.set_defaults(func=cmd_dream)
 
     return parser
 
