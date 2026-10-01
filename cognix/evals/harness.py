@@ -35,6 +35,8 @@ def run_action(runtime, action):
         return runtime.run_goal(goal_id)
     if kind == "consolidate":
         return runtime.consolidate()
+    if kind == "dream":
+        return runtime.dream()
     if kind == "cycle":
         return runtime.cycle(action[1] if len(action) > 1 else 1.0)
     if kind == "rehearse_all":
