@@ -59,7 +59,7 @@ outcome, all in one process you can inspect.
         |                               |
 +-------v-------+               +-------v-------+
 | tool registry |               | eval harness  |
-| calc, notes,  |               | 17 scenarios, |
+| calc, notes,  |               | 18 scenarios, |
 | files, shell, |               | metrics,      |
 | http, plugins |               | reports       |
 +---------------+               +---------------+
@@ -153,6 +153,12 @@ assert: note demo 25
   linked, their shared semantic relations are strengthened, and matching
   working-memory items are rehearsed. Salient memories get stronger
   instead of quietly decaying.
+- **dream cycle**: seeded recombination of salient but unlinked episodes
+  into dream traces (tagged `dream`, linked with `dream-related-to`).
+  Insights become beliefs at most 0.5 confidence, clearly labeled by
+  source. CLI: `python -m cognix dream [--load state.json --save state.json]`.
+  Config keys: `memory.dream_budget`, `memory.dreams_per_cycle`,
+  `memory.dream_min_salience`, `memory.dream_seed`.
 
 ## attention
 
@@ -202,7 +208,7 @@ add your own.
 
 ## evals
 
-`python -m cognix.cli eval` runs 17 scripted scenarios: memory recall,
+`python -m cognix.cli eval` runs 18 scripted scenarios: memory recall,
 salience filtering, belief revision, tool-using planning, consolidation
 and abstraction, clean failure paths, persistence roundtrips,
 long-horizon multi-goal runs, associative recall, file tool safety,
@@ -239,7 +245,7 @@ cognix/
   plugins.py        plugin loading
   cli.py repl.py batch.py
   memory/           working, episodic, semantic, consolidation,
-                    associative, forgetting
+                    associative, forgetting, replay, dream
   attention/        salience, focus, arousal
   perception/       pipeline, beliefs, schemas
   agent/            goals, planner, executor, reflection, metacognition
