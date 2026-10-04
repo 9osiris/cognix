@@ -19,6 +19,7 @@ from .attention.curiosity import CuriosityTracker
 from .attention.focus import Focus
 from .attention.salience import score_observation
 from .config import Config
+from .events import EventBus
 from .introspection.inspect import query_state
 from .introspection.inspect import summarize as _summarize_state
 from .introspection.inspect import summary as _summary_text
@@ -106,6 +107,14 @@ class CognitiveRuntime:
         )
         self.beliefs = BeliefStore()
 
+        self.events = EventBus(
+            max_log=self.config.get("runtime.event_log_size", 200),
+            enabled=self.config.get("runtime.events_enabled", True),
+            now=self._now,
+        )
+        # belief assertions announce themselves on the bus
+        self.beliefs._emit = self.events.emit
+
         self.tools = ToolRegistry()
         for tool in make_builtin_tools(self.workspace_dir):
             self.tools.register(tool)
@@ -149,6 +158,8 @@ class CognitiveRuntime:
         report = {"text": text, "source": source, "attended": False}
         if not text:
             return report
+        self.events.emit("observation.received", source=source,
+                         chars=len(text))
         with self.tracer.start("observe", source=source):
             parsed = parse_observation(text)
             report["parsed"] = parsed
@@ -170,11 +181,16 @@ class CognitiveRuntime:
             selected = self.focus.select([(text, salience)])
             if not selected:
                 report["reason"] = "below attention threshold"
+                self.events.emit("observation.ignored",
+                                 source=source, salience=round(salience, 4))
                 return report
             report["attended"] = True
             item = self.working.add(text, kind=parsed.get("intent", "inform"),
                                    source=source, activation=max(0.2, salience))
             report["working_id"] = item.id
+            self.events.emit("observation.attended", source=source,
+                             salience=round(salience, 4),
+                             working_id=item.id)
             added = []
             for proposition, confidence in observation_to_beliefs(parsed):
                 belief = self.beliefs.assert_belief(proposition, confidence, source)
@@ -189,6 +205,8 @@ class CognitiveRuntime:
                     source=source,
                 )
                 report["episode_id"] = episode.id
+                self.events.emit("episode.recorded", episode_id=episode.id,
+                                 salience=round(salience, 4))
         return report
 
     # maintenance
@@ -221,6 +239,8 @@ class CognitiveRuntime:
             replay_stats = replay(self.episodic, self.semantic, self.working,
                                   policy=self.replay_policy, now=self._now)
         stats["replay"] = replay_stats
+        self.events.emit("memory.consolidated", stats=stats)
+        self.events.emit("memory.replayed", stats=replay_stats)
         return stats
 
     def dream(self):
@@ -233,6 +253,8 @@ class CognitiveRuntime:
         with self.tracer.start("dream"):
             stats = dream(self.episodic, self.semantic, self.beliefs,
                           policy=self.dream_policy, now=self._now)
+        self.events.emit("memory.dreamed", dreams=stats.get("dreams", 0),
+                         insights=stats.get("insights", 0))
         return stats
 
     # agency
@@ -240,6 +262,9 @@ class CognitiveRuntime:
     def add_goal(self, description, priority=0.5, **kwargs):
         goal = self.goals.push(description, priority=priority, **kwargs)
         goal.status = "active"
+        self.events.emit("goal.added", goal_id=goal.id,
+                         priority=priority,
+                         description=description[:120])
         return goal
 
     def expand_goal(self, goal_id):
@@ -257,7 +282,10 @@ class CognitiveRuntime:
             return []
         with self.tracer.start("expand_goal", goal=goal.description[:60],
                                clauses=len(clauses)):
-            return self.goals.decompose(goal.id, clauses)
+            children = self.goals.decompose(goal.id, clauses)
+        self.events.emit("goal.expanded", goal_id=goal.id,
+                         children=[c.id for c in children])
+        return children
 
     def _settle_resumed_parent(self, goal):
         """Complete a resumed parent from its children's outcomes.
@@ -277,8 +305,13 @@ class CognitiveRuntime:
         if failed:
             self.goals.fail(goal.id, reason="%d/%d subgoals failed: %s" % (
                 len(failed), len(children), summary[:200]))
+            self.events.emit("goal.failed", goal_id=goal.id,
+                             settled_parent=True,
+                             failed_children=len(failed))
         else:
             self.goals.complete(goal.id, outcome="subgoals done: %s" % summary[:200])
+            self.events.emit("goal.completed", goal_id=goal.id,
+                             settled_parent=True)
         return True
 
     def run_all_goals(self, max_goals=None):
@@ -323,14 +356,23 @@ class CognitiveRuntime:
                     issues = self.planner.validate(plan)
                     if issues:
                         self.goals.fail(goal.id, reason="invalid plan: " + "; ".join(issues))
+                        self.events.emit("goal.failed", goal_id=goal.id,
+                                         reason="invalid plan")
                         return {"ok": False, "error": "invalid plan", "issues": issues}
+                    self.events.emit("plan.started", goal_id=goal.id,
+                                     strategy=strategy, attempt=attempt,
+                                     steps=len(plan.steps))
                 with self.tracer.start("execute", attempt=attempt):
-                    trace = self.executor.run_plan(plan)
+                    trace = self.executor.run_plan(
+                        plan, on_step=self._step_event)
                 reflection = reflect(trace, goal)
                 self._learn_from_reflection(reflection, goal, trace)
                 self.meta.record_outcome(plan.strategy, reflection["success"])
                 if reflection["success"]:
                     self.goals.complete(goal.id, outcome=reflection["summary"])
+                    self.events.emit("goal.completed", goal_id=goal.id,
+                                     attempts=attempt + 1,
+                                     steps=len(trace.results))
                     return {"ok": True, "goal_id": goal.id, "attempts": attempt + 1,
                             "steps": len(trace.results), "summary": reflection["summary"]}
                 past_failures += 1
@@ -344,11 +386,22 @@ class CognitiveRuntime:
                 }
                 with self.tracer.start("replan", attempt=attempt):
                     plan = self.planner.replan(plan, failure, self.beliefs)
+                self.events.emit("plan.replanned", goal_id=goal.id,
+                                 attempt=attempt,
+                                 failure_kind=failure["kind"])
                 if plan.status == "failed":
                     break
         self.goals.fail(goal.id, reason="exhausted attempts")
+        self.events.emit("goal.failed", goal_id=goal.id,
+                         reason="exhausted attempts", attempts=attempt + 1)
         return {"ok": False, "goal_id": goal.id, "attempts": attempt + 1,
                 "error": "exhausted attempts"}
+
+    def _step_event(self, result):
+        # on_step callback for the executor: announce each tool step
+        self.events.emit("tool.step_finished", step_id=result.step_id,
+                         tool=result.tool, ok=result.ok,
+                         duration=round(result.duration, 3))
 
     def _learn_from_reflection(self, reflection, goal, trace):
         # turn the outcome into durable memory
@@ -363,6 +416,11 @@ class CognitiveRuntime:
         for lesson in reflection.get("lessons", []):
             self.beliefs.assert_belief("lesson: " + lesson.text,
                                        lesson.confidence, "reflection")
+        if reflection.get("lessons"):
+            self.events.emit("reflection.lessons", goal_id=goal.id,
+                             success=reflection["success"],
+                             lessons=[l.text[:120]
+                                      for l in reflection["lessons"]])
         self.working.add(summary, kind="reflection", source="reflection",
                          activation=0.8)
 
@@ -391,6 +449,7 @@ class CognitiveRuntime:
             "dream_policy": self.dream_policy.to_dict(),
             "strategy_ledger": self.meta.ledger_to_dict(),
             "trace": self.tracer.to_dict(),
+            "events": self.events.to_dict(),
             "config": self.config.to_dict(),
         }
 
@@ -421,4 +480,8 @@ class CognitiveRuntime:
         rt.assoc = AssociativeRecall(rt.working, rt.episodic, rt.semantic)
         if data.get("trace"):
             rt.tracer = _restore(Tracer, data["trace"])
+        if data.get("events"):
+            rt.events = EventBus.from_dict(data["events"], now=rt._now)
+        # restored subsystems lose their emit hooks; reattach
+        rt.beliefs._emit = rt.events.emit
         return rt
