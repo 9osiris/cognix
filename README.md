@@ -153,12 +153,16 @@ assert: note demo 25
   linked, their shared semantic relations are strengthened, and matching
   working-memory items are rehearsed. Salient memories get stronger
   instead of quietly decaying.
-- **dream cycle**: seeded recombination of salient but unlinked episodes
-  into dream traces (tagged `dream`, linked with `dream-related-to`).
-  Insights become beliefs at most 0.5 confidence, clearly labeled by
-  source. CLI: `python -m cognix dream [--load state.json --save state.json]`.
+- **dream cycle**: the creative counterpart to replay. Seeded random pairs
+  of salient but unlinked episodes are recombined into dream traces
+  (episodes tagged `dream`), and each pair proposes one low-confidence
+  insight belief plus a `dream-related-to` semantic relation. Dream
+  beliefs always carry source `dream` and stay at or under 0.5
+  confidence, so they read as hypotheses, not facts. Runs on demand:
+  `python -m cognix dream [--load state.json --save state.json]`.
   Config keys: `memory.dream_budget`, `memory.dreams_per_cycle`,
-  `memory.dream_min_salience`, `memory.dream_seed`.
+  `memory.dream_min_salience`, `memory.dream_seed` (set a seed for
+  reproducible dreams).
 
 ## attention
 
@@ -208,14 +212,40 @@ add your own.
 
 ## evals
 
-`python -m cognix.cli eval` runs 18 scripted scenarios: memory recall,
+`python -m cognix.cli eval` runs 19 scripted scenarios: memory recall,
 salience filtering, belief revision, tool-using planning, consolidation
 and abstraction, clean failure paths, persistence roundtrips,
 long-horizon multi-goal runs, associative recall, file tool safety,
 dataflow chaining, replay strengthening, curiosity novelty,
-metacognitive learning, belief contradiction, forgetting curves, and
-hierarchical goals. Each scenario has checks; the harness reports
-pass/fail, scores, and aggregate metrics.
+metacognitive learning, belief contradiction, forgetting curves,
+hierarchical goals, dream insights, and the event bus. Each scenario
+has checks; the harness reports pass/fail, scores, and aggregate
+metrics.
+
+## events
+
+Subsystems announce what they do on a shared event bus (`cognix/events.py`)
+instead of being wired to each other directly. The tracer records how long
+things took; the bus records what happened: `observation.received`,
+`observation.attended`, `observation.ignored`, `episode.recorded`,
+`belief.asserted`, `belief.contradicted`, `goal.added`, `goal.expanded`,
+`goal.completed`, `goal.failed`, `plan.started`, `plan.replanned`,
+`tool.step_finished`, `reflection.lessons`, `memory.consolidated`,
+`memory.replayed`, `memory.dreamed`.
+
+```python
+rt.events.subscribe("goal.completed", lambda e: print("done:", e["payload"]["goal_id"]))
+rt.observe("the atlas server is running hot")
+rt.events.recent("observation.attended")  # last 20 by default
+rt.events.counts()                        # {"goal.completed": 2, ...}
+```
+
+The bus keeps a bounded log (`runtime.event_log_size`, default 200
+events), a handler that raises is recorded on `bus.errors` without killing
+the emitter, and the log persists with the rest of the saved state.
+`python -m cognix.cli events --load state.json --type goal.completed`
+dumps the log from a saved state. Turn it off with
+`runtime.events_enabled: false` in config.
 
 ## persistence
 
@@ -241,6 +271,7 @@ scaffolds a workspace with config.
 cognix/
   runtime.py        the cognitive cycle
   config.py         layered configuration
+  events.py         pub/sub event bus between subsystems
   persistence.py    versioned state save/load
   plugins.py        plugin loading
   cli.py repl.py batch.py
