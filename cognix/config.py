@@ -37,6 +37,8 @@ DEFAULTS = {
         "autosave": False,
         "save_path": "cognix_state.json",
         "consolidate_every": 10,
+        "events_enabled": True,
+        "event_log_size": 200,
     },
 }
 
