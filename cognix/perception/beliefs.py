@@ -95,9 +95,11 @@ class BeliefStore:
     # blend factor when re-asserting an existing proposition
     REVISION_BLEND = 0.5
 
-    def __init__(self, now=None):
+    def __init__(self, now=None, emit=None):
         self._now = now or time.time
         self._beliefs = {}
+        # optional event hook: called as emit(event_type, **payload)
+        self._emit = emit
 
     def __len__(self):
         return len(self._beliefs)
@@ -131,8 +133,10 @@ class BeliefStore:
             created=moment,
             updated=moment,
         )
+        contradicted = []
         for other in self._beliefs.values():
             if _contradicts(belief.proposition, other.proposition):
+                contradicted.append(other.proposition)
                 belief.confidence = max(
                     0.0, belief.confidence - self.CONTRADICTION_PENALTY
                 )
@@ -143,6 +147,12 @@ class BeliefStore:
                 other.conflict = True
                 other.updated = moment
         self._beliefs[key] = belief
+        if self._emit is not None:
+            self._emit("belief.asserted", proposition=belief.proposition,
+                       confidence=round(belief.confidence, 4), source=source)
+            for other_prop in contradicted:
+                self._emit("belief.contradicted", proposition=belief.proposition,
+                           contradicts=other_prop)
         return belief
 
     def retract(self, proposition):
