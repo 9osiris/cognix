@@ -97,6 +97,23 @@ def cmd_batch(args):
     return 1 if failed else 0
 
 
+def cmd_events(args):
+    if args.load:
+        rt = CognitiveRuntime.load(args.load)
+    else:
+        rt = _make_runtime(args)
+    events = rt.events.recent(args.type, n=args.n)
+    if not events:
+        print("no events")
+        return 0
+    for event in events:
+        bits = ["%s #%d" % (event["type"], event["seq"])]
+        for key, value in event["payload"].items():
+            bits.append("%s=%s" % (key, value))
+        print(" ".join(bits))
+    return 0
+
+
 def cmd_inspect(args):
     rt = CognitiveRuntime.load(args.state)
     state = rt.state_dict()
@@ -188,6 +205,15 @@ def build_parser():
     p_dream.add_argument("--save", default=None,
                          help="save state to path after")
     p_dream.set_defaults(func=cmd_dream)
+
+    p_events = sub.add_parser("events", help="show the event log")
+    p_events.add_argument("--load", default=None,
+                          help="load state file first")
+    p_events.add_argument("--type", default=None,
+                          help="only show this event type")
+    p_events.add_argument("-n", type=int, default=20,
+                          help="how many recent events to show")
+    p_events.set_defaults(func=cmd_events)
 
     return parser
 
