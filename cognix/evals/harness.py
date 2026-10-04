@@ -37,6 +37,13 @@ def run_action(runtime, action):
         return runtime.consolidate()
     if kind == "dream":
         return runtime.dream()
+    if kind == "subscribe":
+        # subscribe a collector so a scenario can check live delivery
+        captured = getattr(runtime, "_captured_events", None)
+        if captured is None:
+            captured = runtime._captured_events = []
+        runtime.events.subscribe(action[1], captured.append)
+        return {"subscribed": action[1]}
     if kind == "cycle":
         return runtime.cycle(action[1] if len(action) > 1 else 1.0)
     if kind == "rehearse_all":
