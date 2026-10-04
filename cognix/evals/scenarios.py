@@ -467,6 +467,59 @@ def scenario_dream_insights():
     )
 
 
+def scenario_event_bus():
+    actions = [
+        ("observe", "the atlas server is running hot"),
+        ("subscribe", "goal.added"),
+        ("subscribe", "plan.started"),
+        ("goal", "write the server temperature into notes.txt", 0.9),
+        ("run",),
+        ("consolidate",),
+    ]
+
+    def observations_logged(runtime):
+        hits = runtime.events.recent("observation.attended")
+        return bool(hits), "observation.attended=%d" % len(hits)
+
+    def subscriber_got_events(runtime):
+        captured = getattr(runtime, "_captured_events", [])
+        types = set(e["type"] for e in captured)
+        ok = "goal.added" in types and "plan.started" in types
+        return ok, "captured=%s" % sorted(types)
+
+    def plan_started_has_strategy(runtime):
+        started = runtime.events.recent("plan.started")
+        ok = bool(started) and "strategy" in started[0]["payload"]
+        return ok, "plan.started=%d" % len(started)
+
+    def consolidation_logged(runtime):
+        hits = runtime.events.recent("memory.consolidated")
+        return bool(hits), "memory.consolidated=%d" % len(hits)
+
+    def tool_steps_announced(runtime):
+        hits = runtime.events.recent("tool.step_finished")
+        return bool(hits), "tool.step_finished=%d" % len(hits)
+
+    def seq_numbers_increase(runtime):
+        seqs = [e["seq"] for e in runtime.events.recent(n=500)]
+        ordered = all(b > a for a, b in zip(seqs, seqs[1:]))
+        return ordered and len(seqs) >= 5, "events=%d" % len(seqs)
+
+    return Scenario(
+        "event_bus",
+        "the bus announces perception, planning, execution, and memory "
+        "events with ordered sequence numbers, and live subscribers "
+        "receive them",
+        actions,
+        [("observations logged", observations_logged),
+         ("subscriber received goal and plan events", subscriber_got_events),
+         ("plan.started carries strategy", plan_started_has_strategy),
+         ("consolidation logged", consolidation_logged),
+         ("tool steps announced", tool_steps_announced),
+         ("sequence numbers increase", seq_numbers_increase)],
+    )
+
+
 def build_scenarios():
     return [
         scenario_memory_recall(),
@@ -487,4 +540,5 @@ def build_scenarios():
         scenario_forgetting_curve(),
         scenario_hierarchical_goals(),
         scenario_dream_insights(),
+        scenario_event_bus(),
     ]
