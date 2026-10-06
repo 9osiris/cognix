@@ -257,6 +257,25 @@ class CognitiveRuntime:
                          insights=stats.get("insights", 0))
         return stats
 
+    def sleep(self):
+        """Run one full sleep cycle: consolidate, then dream.
+
+        Consolidation promotes rehearsed working items into episodic
+        memory and replays the salient ones; dreaming then recombines
+        the fresh set into dream traces and insight hypotheses. This
+        is the offline pass a mind runs while the world is quiet.
+        """
+        with self.tracer.start("sleep"):
+            stats = self.consolidate()
+            dream_stats = self.dream()
+        stats = dict(stats)
+        stats["dream"] = dream_stats
+        self.events.emit("memory.slept",
+                         dreams=dream_stats.get("dreams", 0),
+                         insights=dream_stats.get("insights", 0),
+                         episodes_added=stats.get("episodes_added", 0))
+        return stats
+
     # agency
 
     def add_goal(self, description, priority=0.5, **kwargs):
