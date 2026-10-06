@@ -61,6 +61,27 @@ def test_tag_overlap():
     assert _tag_overlap(servers[0], food[0]) == 0.0
 
 
+def test_tag_overlap_ignores_bare_intent_tags():
+    mem = EpisodicMemory()
+    mem.record(summary="the server is hot", tags=("inform",), salience=0.9)
+    mem.record(summary="the garden needs water", tags=("inform",), salience=0.9)
+    eps = mem.recent(10)
+    assert _tag_overlap(eps[0], eps[1]) == 0.0
+    mem.record(summary="the db is slow", tags=("inform", "db"), salience=0.9)
+    mem.record(summary="the db needs indexes", tags=("inform", "db"), salience=0.9)
+    eps = mem.recent(10)
+    assert _tag_overlap(eps[0], eps[1]) == 1.0
+
+
+def test_replay_does_not_link_on_intent_tag_alone():
+    mem = EpisodicMemory()
+    mem.record(summary="the server is hot", tags=("inform",), salience=0.9)
+    mem.record(summary="the garden needs water", tags=("inform",), salience=0.9)
+    sem = SemanticMemory()
+    stats = replay(mem, sem, policy=ReplayPolicy(budget=5, min_salience=0.4))
+    assert stats["links_added"] == 0
+
+
 def test_keyword_overlap():
     mem = make_episodic()
     eps = mem.recent(10)
