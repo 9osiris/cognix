@@ -62,9 +62,16 @@ def _recency_weight(age: float, tau: float) -> float:
     return math.exp(-max(0.0, age) / tau)
 
 
+# intent tags describe how something was said, not what it was about
+_INTENT_TAGS = frozenset({"inform", "question", "goal", "command"})
+
+
 def _tag_overlap(a: Episode, b: Episode) -> float:
-    # jaccard similarity over tag sets
-    sa, sb = set(a.tags), set(b.tags)
+    # jaccard similarity over topical tags. a lone shared intent tag
+    # ("inform") never establishes relatedness on its own, or every
+    # observation would link to every other and dreaming would starve
+    sa = set(a.tags) - _INTENT_TAGS
+    sb = set(b.tags) - _INTENT_TAGS
     if not sa or not sb:
         return 0.0
     return len(sa & sb) / len(sa | sb)
