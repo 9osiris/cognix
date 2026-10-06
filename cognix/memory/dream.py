@@ -112,11 +112,15 @@ def dream(
 
     order = list(candidates)
     rng.shuffle(order)
-    pairs = [(order[i], order[i + 1]) for i in range(0, len(order) - 1, 2)]
+    # every unique pairing, shuffled: dreaming takes the first `dreams`
+    # pairs that are not already linked, so one replay link cannot
+    # starve the whole cycle
+    pairs = [(a, b) for i, a in enumerate(order) for b in order[i + 1:]]
+    rng.shuffle(pairs)
 
-    for first, second in pairs[: policy.dreams]:
-        if first.id == second.id:
-            continue
+    for first, second in pairs:
+        if stats["dreams"] >= policy.dreams:
+            break
         stats["pairs_examined"] += 1
         if _already_linked(episodic, first, second):
             continue
