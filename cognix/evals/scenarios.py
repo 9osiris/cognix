@@ -520,6 +520,42 @@ def scenario_event_bus():
     )
 
 
+def scenario_sleep_cycle():
+    actions = [
+        ("observe", "the atlas server is running hot"),
+        ("observe", "the garden irrigation needs a timer"),
+        ("observe", "mercury-04 runs the staging database"),
+        ("rehearse_all",),
+        ("sleep",),
+    ]
+
+    def sleep_logged(runtime):
+        hits = runtime.events.recent("memory.slept")
+        return bool(hits), "memory.slept=%d" % len(hits)
+
+    def consolidated_and_dreamed(runtime):
+        slept = runtime.events.recent("memory.slept")
+        cons = runtime.events.recent("memory.consolidated")
+        dreamed = runtime.events.recent("memory.dreamed")
+        ok = bool(slept) and bool(cons) and bool(dreamed)
+        return ok, "slept=%d consolidated=%d dreamed=%d" % (
+            len(slept), len(cons), len(dreamed))
+
+    def dreams_from_sleep(runtime):
+        dreams = [e for e in runtime.episodic.recent(30) if "dream" in e.tags]
+        return len(dreams) >= 1, "dream episodes=%d" % len(dreams)
+
+    return Scenario(
+        "sleep_cycle",
+        "one sleep call runs consolidation plus replay, then dreaming, "
+        "and announces the combined pass on the event bus",
+        actions,
+        [("sleep announced on the bus", sleep_logged),
+         ("consolidation and dreaming both ran", consolidated_and_dreamed),
+         ("dream traces recorded", dreams_from_sleep)],
+    )
+
+
 def build_scenarios():
     return [
         scenario_memory_recall(),
@@ -541,4 +577,5 @@ def build_scenarios():
         scenario_hierarchical_goals(),
         scenario_dream_insights(),
         scenario_event_bus(),
+        scenario_sleep_cycle(),
     ]
