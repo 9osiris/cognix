@@ -37,6 +37,8 @@ def run_action(runtime, action):
         return runtime.consolidate()
     if kind == "dream":
         return runtime.dream()
+    if kind == "sleep":
+        return runtime.sleep()
     if kind == "subscribe":
         # subscribe a collector so a scenario can check live delivery
         captured = getattr(runtime, "_captured_events", None)
