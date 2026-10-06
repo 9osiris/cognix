@@ -143,6 +143,27 @@ def cmd_dream(args):
     return 0
 
 
+def cmd_sleep(args):
+    if args.load:
+        rt = CognitiveRuntime.load(args.load)
+    else:
+        rt = _make_runtime(args)
+    stats = rt.sleep()
+    dream_stats = stats.get("dream", {})
+    print("sleep: episodes_added=%d dreams=%d insights=%d" % (
+        stats.get("episodes_added", 0),
+        dream_stats.get("dreams", 0),
+        dream_stats.get("insights", 0)))
+    for ep_id in dream_stats.get("dream_ids", []):
+        ep = rt.episodic.get(ep_id)
+        if ep is not None:
+            print("  - %s" % ep.summary[:100])
+    if args.save:
+        path = rt.save(args.save)
+        print("saved to %s" % path)
+    return 0
+
+
 def cmd_init(args):
     target = args.dir or "cognix_workspace"
     os.makedirs(target, exist_ok=True)
@@ -205,6 +226,13 @@ def build_parser():
     p_dream.add_argument("--save", default=None,
                          help="save state to path after")
     p_dream.set_defaults(func=cmd_dream)
+
+    p_sleep = sub.add_parser("sleep", help="run a full sleep cycle")
+    p_sleep.add_argument("--load", default=None,
+                         help="load state file first")
+    p_sleep.add_argument("--save", default=None,
+                         help="save state to path after")
+    p_sleep.set_defaults(func=cmd_sleep)
 
     p_events = sub.add_parser("events", help="show the event log")
     p_events.add_argument("--load", default=None,
