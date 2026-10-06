@@ -36,7 +36,7 @@ outcome, all in one process you can inspect.
         |                        |                        |
 +-------v-------+        +-------v-------+        +-------v-------+
 | working       |        | belief store  |        | episodic      |
-| memory        |------->| assert/revise |        | memory        |
+| memory        |        | assert/revise |        | memory        |
 | activation,   | beliefs| contradictions|        | record/recall |
 | decay, chunks +-------^-------+        +-------+-------+
 +-------+-------+                |                        |
@@ -163,6 +163,11 @@ assert: note demo 25
   Config keys: `memory.dream_budget`, `memory.dreams_per_cycle`,
   `memory.dream_min_salience`, `memory.dream_seed` (set a seed for
   reproducible dreams).
+- **sleep cycle**: the full offline pass in one call. `sleep()`
+  consolidates (working items become episodes, replay strengthens the
+  salient ones), then dreams over the fresh set, then announces the
+  combined pass as a `memory.slept` event. Runs on demand:
+  `python -m cognix sleep [--load state.json --save state.json]`.
 
 ## attention
 
@@ -212,13 +217,14 @@ add your own.
 
 ## evals
 
-`python -m cognix.cli eval` runs 19 scripted scenarios: memory recall,
+`python -m cognix.cli eval` runs 20 scripted scenarios: memory recall,
 salience filtering, belief revision, tool-using planning, consolidation
 and abstraction, clean failure paths, persistence roundtrips,
 long-horizon multi-goal runs, associative recall, file tool safety,
 dataflow chaining, replay strengthening, curiosity novelty,
 metacognitive learning, belief contradiction, forgetting curves,
-hierarchical goals, dream insights, and the event bus. Each scenario
+hierarchical goals, dream insights, the event bus, and the sleep cycle.
+Each scenario
 has checks; the harness reports pass/fail, scores, and aggregate
 metrics.
 
@@ -231,7 +237,7 @@ things took; the bus records what happened: `observation.received`,
 `belief.asserted`, `belief.contradicted`, `goal.added`, `goal.expanded`,
 `goal.completed`, `goal.failed`, `plan.started`, `plan.replanned`,
 `tool.step_finished`, `reflection.lessons`, `memory.consolidated`,
-`memory.replayed`, `memory.dreamed`.
+`memory.replayed`, `memory.dreamed`, `memory.slept`.
 
 ```python
 rt.events.subscribe("goal.completed", lambda e: print("done:", e["payload"]["goal_id"]))
