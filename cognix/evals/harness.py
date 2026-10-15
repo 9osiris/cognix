@@ -48,6 +48,18 @@ def run_action(runtime, action):
         return {"subscribed": action[1]}
     if kind == "cycle":
         return runtime.cycle(action[1] if len(action) > 1 else 1.0)
+    if kind == "assert_belief":
+        # ("assert_belief", proposition, confidence[, source])
+        source = action[3] if len(action) > 3 else "eval"
+        belief = runtime.beliefs.assert_belief(action[1], action[2], source)
+        return {"proposition": belief.proposition,
+                "confidence": round(belief.confidence, 4)}
+    if kind == "outcome":
+        # ("outcome", proposition, correct[, predicted])
+        predicted = action[3] if len(action) > 3 else None
+        recorded = runtime.record_belief_outcome(action[1], action[2],
+                                                 predicted=predicted)
+        return {"recorded": recorded}
     if kind == "rehearse_all":
         for item in runtime.working.top(20):
             runtime.working.rehearse(item.id)
