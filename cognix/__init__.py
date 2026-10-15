@@ -5,7 +5,7 @@ a planner-executor agent loop with reflection, real tools, evals, and
 persistence. Standard library only.
 """
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 from .runtime import CognitiveRuntime
 
