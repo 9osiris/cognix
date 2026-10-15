@@ -3,13 +3,7 @@
 import re
 import time
 
-
-def _clamp01(value):
-    return max(0.0, min(1.0, float(value)))
-
-
-def _normalize(proposition):
-    return re.sub(r"\s+", " ", str(proposition).strip().lower())
+from .calibrate import CalibrationLedger, _clamp01, _normalize
 
 
 def _split_proposition(proposition):
@@ -100,6 +94,9 @@ class BeliefStore:
         self._beliefs = {}
         # optional event hook: called as emit(event_type, **payload)
         self._emit = emit
+        # calibration ledger: outcomes per proposition, dampens overconfident asserts
+        self.calibration = CalibrationLedger()
+        self.calibration_enabled = True
 
     def __len__(self):
         return len(self._beliefs)
@@ -133,6 +130,19 @@ class BeliefStore:
             created=moment,
             updated=moment,
         )
+        if self.calibration_enabled:
+            # past outcomes pull chronic overconfidence back down
+            raw = belief.confidence
+            belief.confidence = self.calibration.adjusted(
+                belief.proposition, belief.confidence
+            )
+            if belief.confidence != raw and self._emit is not None:
+                self._emit(
+                    "belief.calibrated",
+                    proposition=belief.proposition,
+                    raw=round(raw, 4),
+                    calibrated=round(belief.confidence, 4),
+                )
         contradicted = []
         for other in self._beliefs.values():
             if _contradicts(belief.proposition, other.proposition):
@@ -158,6 +168,20 @@ class BeliefStore:
     def retract(self, proposition):
         """Remove a belief, returning True if it existed."""
         return self._beliefs.pop(_normalize(proposition), None) is not None
+
+    def record_outcome(self, proposition, correct, predicted=None):
+        """Log that a proposition turned out right or wrong.
+
+        Feeds the calibration ledger; predicted defaults to the belief's
+        current confidence. Returns the sample count, or False when there
+        is nothing to record against.
+        """
+        belief = self._beliefs.get(_normalize(proposition))
+        if predicted is None:
+            if belief is None:
+                return False
+            predicted = belief.confidence
+        return self.calibration.record_outcome(proposition, predicted, correct)
 
     def get(self, proposition):
         """Return the Belief for a proposition, or None."""
@@ -211,7 +235,11 @@ class BeliefStore:
         return self
 
     def to_dict(self):
-        return {"beliefs": [belief.to_dict() for belief in self._beliefs.values()]}
+        return {
+            "beliefs": [belief.to_dict() for belief in self._beliefs.values()],
+            "calibration_enabled": self.calibration_enabled,
+            "calibration": self.calibration.to_dict(),
+        }
 
     @classmethod
     def from_dict(cls, data, now=None):
@@ -219,4 +247,6 @@ class BeliefStore:
         for item in data.get("beliefs", []):
             belief = Belief.from_dict(item)
             store._beliefs[_normalize(belief.proposition)] = belief
+        store.calibration_enabled = data.get("calibration_enabled", True)
+        store.calibration = CalibrationLedger.from_dict(data.get("calibration"))
         return store
