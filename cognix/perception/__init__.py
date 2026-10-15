@@ -10,6 +10,7 @@ from cognix.perception.pipeline import (
     parse_observation,
 )
 from cognix.perception.beliefs import Belief, BeliefStore
+from cognix.perception.calibrate import CalibrationLedger
 from cognix.perception.schema import Schema, SchemaLibrary
 
 __all__ = [
@@ -22,6 +23,7 @@ __all__ = [
     "parse_observation",
     "Belief",
     "BeliefStore",
+    "CalibrationLedger",
     "Schema",
     "SchemaLibrary",
 ]
