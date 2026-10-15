@@ -28,6 +28,11 @@ DEFAULTS = {
         "default_strategy": "auto",
         "max_attempts": 3,
     },
+    "beliefs": {
+        "calibration_enabled": True,
+        "calibration_strength": 0.5,
+        "calibration_min_samples": 5,
+    },
     "tools": {
         "workspace_dir": ".",
         "shell_enabled": True,
