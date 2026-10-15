@@ -164,6 +164,22 @@ def cmd_sleep(args):
     return 0
 
 
+def cmd_calibrate(args):
+    if args.load:
+        rt = CognitiveRuntime.load(args.load)
+    else:
+        rt = _make_runtime(args)
+    stats = rt.beliefs.calibration.stats()
+    print("outcomes=%d propositions=%d brier=%.4f dampened=%d" % (
+        stats["outcomes"], stats["propositions"],
+        stats["brier"], stats["dampened"]))
+    for row in stats["bins"]:
+        print("  %s n=%d mean_predicted=%.3f hit_rate=%.3f" % (
+            row["range"], row["n"],
+            row["mean_predicted"], row["hit_rate"]))
+    return 0
+
+
 def cmd_init(args):
     target = args.dir or "cognix_workspace"
     os.makedirs(target, exist_ok=True)
@@ -210,6 +226,7 @@ def build_parser():
 
     p_batch = sub.add_parser("batch", help="run a .cx batch script")
     p_batch.add_argument("script", help="path to batch script")
+    p_batch.add_argument("--save", default=None, help="save state to path after")
     p_batch.set_defaults(func=cmd_batch)
 
     p_inspect = sub.add_parser("inspect", help="summarize a saved state file")
@@ -242,6 +259,11 @@ def build_parser():
     p_events.add_argument("-n", type=int, default=20,
                           help="how many recent events to show")
     p_events.set_defaults(func=cmd_events)
+
+    p_calibrate = sub.add_parser("calibrate", help="show belief calibration stats")
+    p_calibrate.add_argument("--load", default=None,
+                             help="load state file first")
+    p_calibrate.set_defaults(func=cmd_calibrate)
 
     return parser
 
