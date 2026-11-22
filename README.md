@@ -36,7 +36,7 @@ outcome, all in one process you can inspect.
         |                        |                        |
 +-------v-------+        +-------v-------+        +-------v-------+
 | working       |        | belief store  |        | episodic      |
-| memory        |        | assert/revise |        | memory        |
+| memory        |------->| assert/revise |        | memory        |
 | activation,   | beliefs| contradictions|        | record/recall |
 | decay, chunks +-------^-------+        +-------+-------+
 +-------+-------+                |                        |
@@ -199,7 +199,13 @@ save/load.
   3 attempts. Compound goals chain data between steps: a later step can
   reference `<output of step-1>`.
 - **executor**: dispatches tool calls with retries and backoff, records a
-  full trace with timings.
+  full trace with timings. Independent steps run concurrently when
+  `agent.max_workers` is above 1: steps are grouped into waves by their
+  `<output of step-x>` references, each wave runs on a thread pool, and
+  results are gathered back in plan order. Retries, per-step timings,
+  and the stop-on-missing-tool rule all still hold. Threads, not
+  asyncio: every tool is synchronous, so a pool is the honest fit. The
+  default is 1, sequential, exactly as before.
 - **reflection**: classifies outcomes, extracts lessons (stored as beliefs),
   and decides whether replanning is worthwhile.
 - **metacognition**: strategy selection, plan confidence estimates,
@@ -234,9 +240,8 @@ dataflow chaining, replay strengthening, curiosity novelty,
 metacognitive learning, belief contradiction, forgetting curves,
 hierarchical goals, dream insights, the event bus, the sleep cycle,
 and belief calibration.
-Each scenario
-has checks; the harness reports pass/fail, scores, and aggregate
-metrics.
+Each scenario has checks; the harness reports pass/fail, scores, and
+aggregate metrics.
 
 ## events
 
