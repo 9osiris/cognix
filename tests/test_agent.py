@@ -1,6 +1,7 @@
 """Tests for the cognix agent loop subsystem."""
 
 import ast
+import time
 
 import pytest
 
@@ -163,6 +164,27 @@ class FakeBelief:
     def __init__(self, proposition, confidence):
         self.proposition = proposition
         self.confidence = confidence
+
+
+class SlowRegistry(FakeRegistry):
+    """FakeRegistry plus a tool that sleeps, so concurrency is observable."""
+
+    def __init__(self):
+        super().__init__()
+        self._tools["slow"] = (
+            {"name": "slow",
+             "description": "sleep then answer with the given label",
+             "params": {"label": {"type": "string",
+                                  "description": "label to echo",
+                                  "required": False},
+                        "delay": {"type": "number",
+                                  "description": "seconds to sleep",
+                                  "required": False}}},
+            self._slow)
+
+    def _slow(self, args):
+        time.sleep(float(args.get("delay", 0.2)))
+        return {"ok": True, "result": args.get("label", "done"), "error": ""}
 
 
 class FakeBeliefs:
@@ -654,6 +676,95 @@ def test_run_plan_on_step_callback(executor):
     executor.run_plan(plan, on_step=seen.append)
     assert len(seen) == 1
     assert seen[0].step_id == plan.steps[0].id
+
+
+# parallel execution
+
+
+def test_max_workers_defaults_to_one(registry):
+    assert Executor(registry).max_workers == 1
+
+
+def test_parallel_runs_independent_steps_together():
+    registry = SlowRegistry()
+    executor = Executor(registry, max_workers=3)
+    plan = Plan("goal-1", [
+        PlanStep("first", tool="slow",
+                 args={"label": "a", "delay": 0.25}, id="step-1"),
+        PlanStep("second", tool="slow",
+                 args={"label": "b", "delay": 0.25}, id="step-2"),
+        PlanStep("third", tool="slow",
+                 args={"label": "c", "delay": 0.25}, id="step-3"),
+    ])
+    start = time.monotonic()
+    trace = executor.run_plan(plan)
+    elapsed = time.monotonic() - start
+    assert trace.success
+    assert [r.step_id for r in trace.results] == ["step-1", "step-2", "step-3"]
+    assert [r.output for r in trace.results] == ["a", "b", "c"]
+    assert elapsed < 0.6
+    # same plan sequential takes the full 3 x 0.25s
+    slow = Executor(registry, max_workers=1)
+    start = time.monotonic()
+    slow.run_plan(plan)
+    assert time.monotonic() - start >= 0.7
+
+
+def test_parallel_gathers_results_in_plan_order():
+    registry = SlowRegistry()
+    executor = Executor(registry, max_workers=2)
+    plan = Plan("goal-1", [
+        PlanStep("slow one", tool="slow",
+                 args={"label": "a", "delay": 0.3}, id="step-1"),
+        PlanStep("fast one", tool="slow",
+                 args={"label": "b", "delay": 0.0}, id="step-2"),
+    ])
+    trace = executor.run_plan(plan)
+    assert trace.success
+    assert [r.step_id for r in trace.results] == ["step-1", "step-2"]
+    assert [r.output for r in trace.results] == ["a", "b"]
+
+
+def test_parallel_dependent_step_waits_for_output():
+    executor = Executor(FakeRegistry(), max_workers=3)
+    plan = Plan("goal-1", [
+        PlanStep("add", tool="calc", args={"expression": "2+2"}, id="step-1"),
+        PlanStep("sum it up", tool="summarize",
+                 args={"text": "<output of step-1>"}, id="step-2"),
+    ])
+    trace = executor.run_plan(plan)
+    assert trace.success
+    assert trace.results[0].output == 4
+    assert trace.results[1].output == "4"
+
+
+def test_parallel_stops_after_tool_missing_wave(registry):
+    executor = Executor(registry, max_workers=2)
+    plan = Plan("goal-1", [
+        PlanStep("ghost step", tool="ghost", id="step-1"),
+        PlanStep("add", tool="calc", args={"expression": "1+1"}, id="step-2"),
+        PlanStep("never runs", tool="calc",
+                 args={"expression": "<output of step-2>"}, id="step-3"),
+    ])
+    trace = executor.run_plan(plan)
+    assert not trace.success
+    assert plan.status == "failed"
+    assert [r.step_id for r in trace.results] == ["step-1", "step-2"]
+    assert len(registry.calls) == 1
+
+
+def test_parallel_retries_still_work(registry):
+    registry.failures["calc"] = 1
+    executor = Executor(registry, max_workers=2, backoff_base=0.0)
+    plan = Plan("goal-1", [
+        PlanStep("add", tool="calc", args={"expression": "2+2"}, id="step-1"),
+        PlanStep("add again", tool="calc", args={"expression": "3+3"},
+                 id="step-2"),
+    ])
+    trace = executor.run_plan(plan)
+    assert trace.success
+    assert any(r.attempts == 2 for r in trace.results)
+    assert [r.output for r in trace.results] == [4, 6]
 
 
 def test_trace_summary(executor):
