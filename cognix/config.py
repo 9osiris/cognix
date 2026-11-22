@@ -27,6 +27,7 @@ DEFAULTS = {
         "step_timeout": 30.0,
         "default_strategy": "auto",
         "max_attempts": 3,
+        "max_workers": 1,
     },
     "beliefs": {
         "calibration_enabled": True,
@@ -155,6 +156,7 @@ class Config:
             ("agent.max_retries", int, 0, 10),
             ("agent.step_timeout", float, 0.1, 3600.0),
             ("agent.max_attempts", int, 1, 10),
+            ("agent.max_workers", int, 1, 32),
             ("runtime.consolidate_every", int, 1, 10000),
         ]
         for dotted, kind, lo, hi in checks:
