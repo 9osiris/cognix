@@ -120,6 +120,7 @@ def test_config_defaults():
     assert cfg.get("memory.decay_rate") == 0.08
     assert cfg.get("attention.bandwidth") == 3
     assert cfg.get("agent.max_retries") == 2
+    assert cfg.get("agent.max_workers") == 1
     assert cfg.get("tools.shell_enabled") is True
     assert cfg.get("runtime.consolidate_every") == 10
     assert cfg.validate() == []
@@ -130,7 +131,8 @@ def test_config_required_sections_present():
     for section, keys in {
         "memory": ["working_capacity", "decay_rate", "consolidation_threshold"],
         "attention": ["bandwidth", "salience_threshold"],
-        "agent": ["max_retries", "step_timeout", "default_strategy"],
+        "agent": ["max_retries", "step_timeout", "default_strategy",
+                  "max_workers"],
         "tools": ["workspace_dir", "shell_enabled"],
         "runtime": ["autosave", "save_path", "consolidate_every"],
     }.items():
