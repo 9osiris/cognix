@@ -148,6 +148,7 @@ class CognitiveRuntime:
             self.tools,
             max_retries=self.config.get("agent.max_retries", 2),
             step_timeout=self.config.get("agent.step_timeout", 30.0),
+            max_workers=self.config.get("agent.max_workers", 1),
         )
         self.meta = MetaCognition()
         self.tracer = Tracer()
