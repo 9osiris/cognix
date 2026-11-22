@@ -118,6 +118,14 @@ def test_config_flows_into_runtime():
     assert rt.working.capacity == 3
 
 
+def test_max_workers_flows_into_executor():
+    cfg = Config.defaults()
+    cfg.set("agent.max_workers", 4)
+    workspace = tempfile.mkdtemp(prefix="cognix_test_")
+    rt = CognitiveRuntime(config=cfg, workspace_dir=workspace)
+    assert rt.executor.max_workers == 4
+
+
 def test_arousal_rises_on_urgent(rt):
     before = rt.arousal.level()
     rt.observe("URGENT critical failure in production, act now")
